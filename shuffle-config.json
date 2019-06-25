@@ -1,6 +1,8 @@
 {
-  "SERVER_LOG_PATH": "~/.ja/MBII/server.log",
+  "SERVER_LOG_PATH" : "~/.ja/MBII/server.log",
   "SERVER_RCON_PWD" : "rcon",
   "SERVER_IP" : "127.0.1.1",
-  "SERVER_PORT" : "29070"
+  "SERVER_PORT" : "29070",
+  "MIN_PLAYERS_TO_VOTE" : "5",
+  "MIN_PERCENT_PLAYERS_TO_WIN" : "0.6"
 }

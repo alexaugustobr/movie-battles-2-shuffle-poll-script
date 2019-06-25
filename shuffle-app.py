@@ -22,6 +22,9 @@ Todo:
 	* Encapsular app
 	* Mensagens customizadas para o minimo de jogadores para o shuffle
 	* Thread assincrona para mensagens de status do shuffle poll
+	* Thread para enviar os comandos udp para o server
+	* Comando para desfazer a votacao
+	* Verificar se os jogadores estao online para poder votar ao invez de somente ler o log
 
 Special thanks to:
 	* Lucas arts
@@ -43,6 +46,7 @@ import re
 import socket
 import time
 import unicodedata
+import traceback
 
 CONFIG_FILE_NAME = 'shuffle-config.json'
 
@@ -62,6 +66,10 @@ SERVER_LOG_PATH = os.path.expanduser(normalize(data['SERVER_LOG_PATH']))
 SERVER_RCON_PWD = normalize(data['SERVER_RCON_PWD'])
 SERVER_IP = normalize(data['SERVER_IP'])
 SERVER_PORT = normalize(data['SERVER_PORT'])
+
+MIN_PLAYERS_TO_VOTE = int(normalize(data['MIN_PLAYERS_TO_VOTE']))
+
+MIN_PERCENT_PLAYERS_TO_WIN = float(normalize(data['MIN_PERCENT_PLAYERS_TO_WIN']))
 
 REGEX_SAY_COMMAND = r'(.[0-9]*:.[0-9]*) (.*[0-9]:) (say:) (.*:) ("!(shuffle|sf)")'
 
@@ -91,13 +99,9 @@ IS_DEBUG_ENABLED = True
 
 SHUFFLE_ENABLED = 'Shuffle poll is enabled on the server! Say ^3!sf ^7or ^3!shuffle ^7for vote!'
 
-MIN_PLAYERS_TO_VOTE = 2
-
-MIN_PERCENT_PLAYERS_TO_WIN = 0.6
+MSG_RESTART_SCRIPT = 'Restarting the script.'
 
 getOnlyDigitsAsInt = lambda x: int(filter(str.isdigit, x) or None)
-
-MSG_RESTART_SCRIPT = 'Restarting the script.'
 
 class Console:
 	@staticmethod
@@ -314,8 +318,8 @@ class Server:
 		#make socket non blocking
 		the_socket.setblocking(0)
 		#total data partwise in an array
-		total_data=[];
-		data='';
+		total_data=[]
+		data=''
 		#beginning time
 		begin=time.time()
 		while True:
@@ -364,6 +368,10 @@ if __name__ == "__main__":
 					text = logFile.readAsArray()
 
 					for i in range(lastReadedLineNumber, logFile.lastLineNumber):
+
+						if poll.isPassed():
+							break
+
 						textLine = text[i]
 						Console.debug("line {}: {}".format(i, textLine))
 						vote = voteExtractor.extract(textLine)
@@ -372,9 +380,8 @@ if __name__ == "__main__":
 							poll.addVote(vote)
 							server.sendMessage(MSG_PLAYER_WANT.format(vote.playerName))
 
-							if poll.totalVotes > 0:
-								server.sendMessage(
-									MSG_TOTAL_PLAYERS_WANTS.format(poll.totalVotes, poll.totalVotesNeedToWin()-poll.totalVotes))
+							if poll.totalVotes > 0 and not poll.isPassed():
+								server.sendMessage(MSG_TOTAL_PLAYERS_WANTS.format(poll.totalVotes, poll.totalVotesNeedToWin()-poll.totalVotes))
 
 						disconnectedPlayerId = playerDisconnectedExtractor.extract(textLine)
 
@@ -383,8 +390,9 @@ if __name__ == "__main__":
 							server.sendMessage(MSG_PLAYER_REMOVED_FROM_VOTES.format(disconnectedPlayerId))
 
 							if poll.totalVotes > 0:
-								server.sendMessage(
-									MSG_TOTAL_PLAYERS_WANTS.format(poll.totalVotes, poll.totalPlayers))
+								server.sendMessage(MSG_TOTAL_PLAYERS_WANTS.format(poll.totalVotes, poll.totalPlayers))
+
+
 
 					lastReadedLineNumber = logFile.lastLineNumber
 					# double check, this may be not necessary
@@ -397,6 +405,7 @@ if __name__ == "__main__":
 						server.sendShuffle()
 
 		except Exception as e:
+			traceback.print_exc()
 			Console.error(e)
 			Console.info(MSG_RESTART_SCRIPT)
 			time.sleep(LOOP_TIME*2)
